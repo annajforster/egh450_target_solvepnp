@@ -49,12 +49,12 @@ class PoseEstimator():
         self.sub_aruco_pose = rospy.Subscriber("/processed_aruco/pose", PoseStamped, self.callback_aruco_pose)
 
         # Generate the model for the pose solver
-        r = self.param_circle_radius
-        self.model_object = np.array([(0.0, 0.0, 0.0),
-                                      (r, r, 0.0),
-                                      (r, -r, 0.0),
-                                      (-r, r, 0.0),
-                                      (-r, -r, 0.0)])
+        # r = self.param_circle_radius
+        # self.model_object = np.array([(0.0, 0.0, 0.0),
+        #                               (r, r, 0.0),
+        #                               (r, -r, 0.0),
+        #                               (-r, r, 0.0),
+        #                               (-r, -r, 0.0)])
 
     def shutdown(self):
         # Unregister anything that needs it here
@@ -171,8 +171,3 @@ class PoseEstimator():
         msg_out.transform.rotation.w = q[3]
 
         self.tfbr.sendTransform(msg_out)
-
-if __name__ == '__main__':
-    rospy.init_node('pose_estimator')
-    estimator = PoseEstimator()
-    rospy.spin()

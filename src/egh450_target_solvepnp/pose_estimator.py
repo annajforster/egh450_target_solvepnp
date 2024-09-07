@@ -1,10 +1,11 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 import sys
 import rospy
 import cv2
 import numpy as np
 import tf2_ros
+import tf_conversions
 from geometry_msgs.msg import TransformStamped
 
 from sensor_msgs.msg import Image
@@ -122,15 +123,20 @@ class PoseEstimator():
 					msg_out = TransformStamped()
 					msg_out.header = msg_in.header
 					msg_out.child_frame_id = "circle"
-					msg_out.transform.translation.x = tvec[0]
-					msg_out.transform.translation.y = tvec[1]
-					msg_out.transform.translation.z = tvec[2]
-					msg_out.transform.rotation.w = 1.0	# Could use rvec, but need to convert from DCM to quaternion first
-					msg_out.transform.rotation.x = 0.0
-					msg_out.transform.rotation.y = 0.0
-					msg_out.transform.rotation.z = 0.0
+					msg_out.transform.translation.x = tvec[0] * 10e-2
+					msg_out.transform.translation.y = tvec[1] * 10e-2
+					msg_out.transform.translation.z = tvec[2] * 10e-2
+					q = tf_conversions.transformations.quaternion_from_euler(rvec[0], rvec[1], rvec[2])
+					msg_out.transform.rotation.w = q[3]	# Could use rvec, but need to convert from DCM to quaternion first
+					msg_out.transform.rotation.x = q[0]
+					msg_out.transform.rotation.y = q[1]
+					msg_out.transform.rotation.z = q[2]
 
 					self.tfbr.sendTransform(msg_out)
+					rospy.loginfo("Translation Coordinates for ROI are: [x: %0.2f; y: %0.2f; z: %0.2f]" 
+				   % (msg_out.transform.translation.x, msg_out.transform.translation.y, msg_out.transform.translation.z))
+					rospy.loginfo("Rotation Coordinates for ROI are: [x: %0.2f; y: %0.2f; z: %0.2f; w: %0.2f]" 
+				   % (msg_out.transform.rotation.x, msg_out.transform.rotation.y, msg_out.transform.rotation.z, msg_out.transform.rotation.w))
 
 				# Draw the circle for the overlay
 				cv2.circle(cv_image, (px,py), 2, (255, 0, 0), 2)	# Center
