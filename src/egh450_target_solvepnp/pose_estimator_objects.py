@@ -19,7 +19,7 @@ class PoseEstimator():
 		# Set up the CV Bridge
 		self.bridge = CvBridge()
 		self.sub_aruco_pose = rospy.Subscriber("/aruco_pose", Float32MultiArray, self.callback_aruco_pose)
-		
+		self.sub_object_pose = rospy.Subscriber("/object_pose", Float32MultiArray, self.callback_object_pose)
 		self.pub_camera_pose = rospy.Publisher("/camera/pose", TransformStamped, queue_size=2)
 
 		# Define self.model_image
@@ -53,7 +53,7 @@ class PoseEstimator():
 		# There are 5 points, one in the center, and one in each corner
 		marker_side_length = 0.2
 		self.model_object = np.array([
-			(0.0, 0.0, 0.0),  # Center point
+			(0.0, 0.0, 0.0), 	# Centre point
     		(-marker_side_length / 2, marker_side_length / 2, 0.0),  # Top-left corner
     		(marker_side_length / 2, marker_side_length / 2, 0.0),  # Top-right corner
     		(marker_side_length / 2, -marker_side_length / 2, 0.0),  # Bottom-right corner
@@ -117,7 +117,7 @@ class PoseEstimator():
 				if marker_ID not in self.published_markers:
 					if corners is not None and len(corners) == 4:
 						self.model_image = np.array([
-							(((corners[1][0] + corners[0][0]) / 2) + ((corners[1][0] + corners[0][1]) / 2)), # Center point
+							((corners[0][0] + corners[1][0]) / 2, (corners[0][1] + corners[1][1]) / 2),  # Center point
         					(corners[1][0], corners[1][1]),  # Top-left
         					(corners[2][0], corners[2][1]),  # Top-right
         					(corners[3][0], corners[3][1]),  # Bottom-right
