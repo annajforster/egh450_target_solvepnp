@@ -9,7 +9,7 @@ if __name__ == '__main__':
 
 	pe = PoseEstimator()
 
-	rospy.loginfo("Estimating ArUco POSE")
+	rospy.loginfo("Estimating ArUco and Object POSE")
 
 	# Loop here until quit
 	try:

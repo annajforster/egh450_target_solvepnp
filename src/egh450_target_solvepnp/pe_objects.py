@@ -18,16 +18,15 @@ class PoseEstimator():
 	def __init__(self):
 		# Set up the CV Bridge
 		self.bridge = CvBridge()
-		self.sub_aruco_pose = rospy.Subscriber("/aruco_pose", Float32MultiArray, self.callback_aruco_pose)
-		self.sub_object_pose = rospy.Subscriber("/object_pose", Float32MultiArray, self.callback_object_pose)
+		self.sub_object_pose = rospy.Subscriber("/object_pose", Float32MultiArray, self.callback_obj_pose)
 		self.pub_camera_pose = rospy.Publisher("/camera/pose", TransformStamped, queue_size=2)
 
 		# Define self.model_image
 		self.model_image = None
 
 		# Define sets of Marker Data
-		self.marker_data = {}
-		self.published_markers = set()
+		self.object_data = {}
+		self.published_objects = set()
 
 		# Load in parameters from ROS
 		self.param_use_compressed = rospy.get_param("~use_compressed", False)
@@ -49,17 +48,6 @@ class PoseEstimator():
 
 		self.tfbr = tf2_ros.TransformBroadcaster()
 
-		# Generate the model for the pose solver
-		# There are 5 points, one in the center, and one in each corner
-		marker_side_length = 0.2
-		self.model_object = np.array([
-			(0.0, 0.0, 0.0), 	# Centre point
-    		(-marker_side_length / 2, marker_side_length / 2, 0.0),  # Top-left corner
-    		(marker_side_length / 2, marker_side_length / 2, 0.0),  # Top-right corner
-    		(marker_side_length / 2, -marker_side_length / 2, 0.0),  # Bottom-right corner
-    		(-marker_side_length / 2, -marker_side_length / 2, 0.0)  # Bottom-left corner
-			])
-
 	def shutdown(self):
 		# Unregister anything that needs it here
 		self.sub_info.unregister()
@@ -79,24 +67,44 @@ class PoseEstimator():
 			rospy.loginfo("Got camera info")
 			self.got_camera_info = True
 
-	def callback_aruco_pose(self, msg_in):
-		if len(msg_in.data) < 9:	# Ensure data has at least ID and 4 corner points
-			rospy.logwarn(" Received malformed ArUco data.")
+	def callback_obj_pose(self, msg_in):
+		if len(msg_in.data) < 10:	# Ensure data has at least ID, 4 sets of coordinates and x and y lengths
+			rospy.logwarn(" Received malformed target data.")
 			return
 		
 		# Parse incoming coordinates
-		id_array = msg_in.data
-		num_markers = len(id_array) // 9
+		obj_array = msg_in.data
+		num_detect = len(obj_array) // 10
 
-		for i in range(num_markers):		
-			marker_ID = int(id_array[i * 9])
-			corners = np.array(id_array[i * 9 + 1: i * 9 + 9]).reshape((4, 2))
+		for i in range(num_detect):
+        	# Each detection block contains: [class_id, 4 sets of xy coordinates, marker length x, marker length y]
+			class_id = int(obj_array[i * 10])  # Extract the class ID
+			corners = np.array(obj_array[i * 10 + 1: i * 10 + 9]).reshape((4,2))
+			marker_length_x = obj_array[i * 10 + 9]
+			marker_length_y = obj_array[i * 10 + 10]
 
-			rospy.loginfo(f"Received ArUco Marker {marker_ID} with corners: {corners}")
+			if class_id == 101:
+				target = "backpack"
+			elif class_id == 102:
+				target = "person"
+			else:
+				rospy.logwarn("The target identifier is unknown")
+				return
+			
+			rospy.loginfo(f"Received Target: {target} with coordinates")
 
 			#store raw corner data keyed by marker ID
-			self.marker_data[marker_ID] = corners
+			self.object_data[class_id] = corners
 
+		# Generate the model for the pose solver
+		# There are 5 points, one in the center, and one in each corner
+		self.model_object = np.array([
+			(0.0, 0.0, 0.0), 	# Centre point
+    		(-marker_length_x / 2, marker_length_y / 2, 0.0),  # Top-left corner
+    		(marker_length_x / 2, marker_length_y / 2, 0.0),  # Top-right corner
+    		(marker_length_x / 2, -marker_length_y / 2, 0.0),  # Bottom-right corner
+    		(-marker_length_x / 2, -marker_length_y / 2, 0.0)  # Bottom-left corner
+			])
 
 	def callback_img(self, msg_in):
 		# Don't bother to process image if we don't have the camera calibration
@@ -113,11 +121,10 @@ class PoseEstimator():
 				rospy.logerr(e)
 				return
 			
-			for marker_ID, corners in self.marker_data.items():
-				if marker_ID not in self.published_markers:
+			for class_id, corners in self.object_data.items():
+				if class_id not in self.published_objects:
 					if corners is not None and len(corners) == 4:
 						self.model_image = np.array([
-							((corners[0][0] + corners[1][0]) / 2, (corners[0][1] + corners[1][1]) / 2),  # Center point
         					(corners[1][0], corners[1][1]),  # Top-left
         					(corners[2][0], corners[2][1]),  # Top-right
         					(corners[3][0], corners[3][1]),  # Bottom-right
@@ -131,7 +138,7 @@ class PoseEstimator():
 					if success:
 						msg_out = TransformStamped()
 						msg_out.header = msg_in.header
-						msg_out.child_frame_id = f"{marker_ID}"
+						msg_out.child_frame_id = f"{class_id}"
 						msg_out.transform.translation.x = tvec[0] * 10e-2
 						msg_out.transform.translation.y = tvec[1] * 10e-2
 						msg_out.transform.translation.z = tvec[2] * 10e-2
@@ -144,14 +151,13 @@ class PoseEstimator():
 						#self.tfbr.sendTransform(msg_out)
 						self.pub_camera_pose.publish(msg_out)
 						#Add the marker ID to the published set
-						self.published_markers.add(marker_ID)
+						self.published_markers.add(class_id)
 
 						rospy.loginfo("Translation Coordinates for ROI are: [x: %0.2f; y: %0.2f; z: %0.2f]" 
 				   	   % (msg_out.transform.translation.x, msg_out.transform.translation.y, msg_out.transform.translation.z))
 						
-						
 
-				# Draw the ArUco marker corners for visualisation
+				# Draw the corners for visualisation
 				for point in self.model_image[0:]:
 					cv2.circle(cv_image, (int(point[0]), int(point[1])), 5, (0, 255, 0), 3)
 

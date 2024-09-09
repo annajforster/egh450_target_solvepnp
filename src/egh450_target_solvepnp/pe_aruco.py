@@ -67,13 +67,13 @@ class PoseEstimator():
 
 	# Collect in the camera characteristics
 	def callback_info(self, msg_in):
-		self.dist_coeffs = np.array([[msg_in.D[0], msg_in.D[1], msg_in.D[2], msg_in.D[3], msg_in.D[4]]], dtype="double")
+		self.dist_coeffs = np.array([[msg_in.D[0], msg_in.D[1], msg_in.D[2], msg_in.D[3], msg_in.D[4]]], dtype=np.float32)
 
 		self.camera_matrix = np.array([
                  (msg_in.P[0], msg_in.P[1], msg_in.P[2]),
                  (msg_in.P[4], msg_in.P[5], msg_in.P[6]),
                  (msg_in.P[8], msg_in.P[9], msg_in.P[10])],
-				 dtype="double")
+				 dtype=np.float32)
 
 		if not self.got_camera_info:
 			rospy.loginfo("Got camera info")
@@ -149,8 +149,6 @@ class PoseEstimator():
 						rospy.loginfo("Translation Coordinates for ROI are: [x: %0.2f; y: %0.2f; z: %0.2f]" 
 				   	   % (msg_out.transform.translation.x, msg_out.transform.translation.y, msg_out.transform.translation.z))
 						
-						
-
 				# Draw the ArUco marker corners for visualisation
 				for point in self.model_image[0:]:
 					cv2.circle(cv_image, (int(point[0]), int(point[1])), 5, (0, 255, 0), 3)

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 import rospy
-from egh450_target_solvepnp.pose_estimator_aruco import PoseEstimator
+from egh450_target_solvepnp.pe_objects import PoseEstimator
 
 if __name__ == '__main__':
 	# Initialize
@@ -9,7 +9,7 @@ if __name__ == '__main__':
 
 	pe = PoseEstimator()
 
-	rospy.loginfo("Estimating ArUco POSE")
+	rospy.loginfo("Estimating Target POSE")
 
 	# Loop here until quit
 	try:
