@@ -169,22 +169,24 @@ class PoseEstimator():
 				return
 
 		# Get data from the detection model	
-		if len(msg_in.data) < 6:	# Ensure data has at least label, confidence and 4 corner coordinates
+		if len(msg_in.data) < 8:	# Ensure data has at least label, confidence and 4 corner coordinates
 			rospy.logwarn(" Received malformed object data data.")
 			return
 		
 		# Parse the incoming coordinates
 		detection_array = msg_in.data
-		num_detections = len(detection_array) // 6
+		num_detections = len(detection_array) // 8
 
 		for i in range(num_detections):
-        # Each detection block contains: [class_id, confidence, xmin, ymin, xmax, ymax]
+        # Each detection block contains: [class_id, confidence, xmin, ymin, xmax, ymax, lengthx, lengthy]
 			class_id = int(detection_array[i * 6])  # Extract the class ID
 			confidence = detection_array[i * 6 + 1]  # Extract the confidence score
 			xmin = detection_array[i * 6 + 2]
 			ymin = detection_array[i * 6 + 3]
 			xmax = detection_array[i * 6 + 4]
 			ymax = detection_array[i * 6 + 5]
+			marker_length_x = detection_array[i * 6 + 6]
+			marker_length_y = detection_array[i* 6 + 7]
 
         # Convert bounding box data into a numpy array or use it as needed
         # Example: Represent bounding box as four corner points
