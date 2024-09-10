@@ -1,6 +1,6 @@
 <?xml version='1.0'?>
 <launch>
-	<node pkg="pose_estimator" type="pose_estimator_aruco" name="pose_estimator_aruco" clear_params="true" output="screen">
+	<node pkg="pose_estimator" type="pe_objects" name="pe_objects" clear_params="true" output="screen">
 		<!-- Radius of the circle target in meters -->
 		<param name="circle_radius" value="0.2" type="double"/>
 
