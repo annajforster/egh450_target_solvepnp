@@ -20,7 +20,7 @@ class PoseEstimator():
 		self.bridge = CvBridge()
 		self.sub_aruco_pose = rospy.Subscriber("/aruco_pose", Float32MultiArray, self.callback_aruco_pose)
 		
-		self.pub_camera_pose = rospy.Publisher("/camera/pose", TransformStamped, queue_size=10)
+		self.pub_camera_pose = rospy.Publisher("/camera/pose", TransformStamped, queue_size=50)
 
 		# Define self.model_image
 		self.model_image = None
@@ -38,13 +38,13 @@ class PoseEstimator():
 		self.dist_coeffs = None
 
 		# Set up the publishers, subscribers, and tf2
-		self.sub_info = rospy.Subscriber("~camera_info", CameraInfo, self.callback_info)
+		self.sub_info = rospy.Subscriber("~camera_info", CameraInfo, self.callback_info, buff_size=4)
 
 		if self.param_use_compressed:
-			self.sub_img = rospy.Subscriber("~image_raw/compressed", CompressedImage, self.callback_img)
-			self.pub_overlay = rospy.Publisher("~overlay/image_raw/compressed", CompressedImage, queue_size=10)
+			self.sub_img = rospy.Subscriber("~image_raw/compressed", CompressedImage, self.callback_img, buff_size=4)
+			self.pub_overlay = rospy.Publisher("~overlay/image_raw/compressed", CompressedImage, queue_size=50)
 		else:
-			self.sub_img = rospy.Subscriber("~image_raw", Image, self.callback_img)
+			self.sub_img = rospy.Subscriber("~image_raw", Image, self.callback_img, buff_size=4)
 			self.pub_overlay = rospy.Publisher("~overlay/image_raw", Image, queue_size=10)
 
 		self.tfbr = tf2_ros.TransformBroadcaster()

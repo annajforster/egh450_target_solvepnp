@@ -55,13 +55,13 @@ class PoseEstimator():
 
 	# Collect in the camera characteristics
 	def callback_info(self, msg_in):
-		self.dist_coeffs = np.array([[msg_in.D[0], msg_in.D[1], msg_in.D[2], msg_in.D[3], msg_in.D[4]]], dtype="double")
+		self.dist_coeffs = np.array([[msg_in.D[0], msg_in.D[1], msg_in.D[2], msg_in.D[3], msg_in.D[4]]], dtype="float32")
 
 		self.camera_matrix = np.array([
                  (msg_in.P[0], msg_in.P[1], msg_in.P[2]),
                  (msg_in.P[4], msg_in.P[5], msg_in.P[6]),
                  (msg_in.P[8], msg_in.P[9], msg_in.P[10])],
-				 dtype="double")
+				 dtype="float32")
 
 		if not self.got_camera_info:
 			rospy.loginfo("Got camera info")
