@@ -231,3 +231,4 @@ class PoseEstimator():
 				self.pub_overlay.publish( self.bridge.cv2_to_imgmsg( cv_image, "bgr8" ) )
 		except (CvBridgeError,TypeError) as e:
 			rospy.logerr(e)
+

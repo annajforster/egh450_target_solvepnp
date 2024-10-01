@@ -200,8 +200,8 @@ class PoseEstimator:
         self.bridge = CvBridge()
 
         # Subscribe to both YOLOv5 and ArUco detections
-        self.sub_object_pose = rospy.Subscriber("/object_pose", Float32MultiArray, self.callback_obj_pose, queue_size=10)
-        self.sub_aruco_pose = rospy.Subscriber("/aruco_detection", Float32MultiArray, self.callback_aruco_pose, queue_size=10)
+        self.sub_object_pose = rospy.Subscriber("/object_pose", Float32MultiArray, self.callback_obj_pose, queue_size=50)
+        self.sub_aruco_pose = rospy.Subscriber("/aruco_detection", Float32MultiArray, self.callback_aruco_pose, queue_size=50)
         self.pub_camera_pose = rospy.Publisher("/camera/pose", TransformStamped, queue_size=50)
 
         # Initialize variables
@@ -236,12 +236,12 @@ class PoseEstimator:
 
     # Callback for CameraInfo messages
     def callback_info(self, msg_in):
-        self.dist_coeffs = np.array(msg_in.D, dtype="double")
+        self.dist_coeffs = np.array(msg_in.D, dtype=np.float32)
         self.camera_matrix = np.array([
             [msg_in.K[0], msg_in.K[1], msg_in.K[2]],
             [msg_in.K[3], msg_in.K[4], msg_in.K[5]],
             [msg_in.K[6], msg_in.K[7], msg_in.K[8]]],
-            dtype="double")
+            dtype=np.float32)
         
         if not self.got_camera_info:
             rospy.loginfo("Got camera info")
@@ -251,7 +251,7 @@ class PoseEstimator:
     def callback_obj_pose(self, msg_in):
         obj_array = msg_in.data
         if len(obj_array) < 11:
-            rospy.logwarn("Object pose message too short")
+            rospy.logwarn("Object POSE not transmitted correctly")
             return
 
         class_id = int(obj_array[0])  # Extract the class ID
@@ -265,7 +265,7 @@ class PoseEstimator:
         elif class_id == 102:
             target = "Phone"
         else:
-            rospy.logwarn("Unknown target identifier")
+            rospy.logwarn("Unknown target identification")
             return
 
         # Store detection data
@@ -279,7 +279,7 @@ class PoseEstimator:
     def callback_aruco_pose(self, msg_in):
         obj_array = msg_in.data
         if len(obj_array) != 9:
-            rospy.logwarn("ArUco detection message incorrect length")
+            rospy.logwarn("ArUco POSE not transmitted correctly")
             return
 
         marker_id = int(obj_array[0])  # Extract the marker ID
@@ -393,6 +393,6 @@ class PoseEstimator:
             rospy.logerr(e)
 
 if __name__ == "__main__":
-    rospy.init_node("pose_estimator")
+    rospy.init_node("egh450_target_solvepnp")
     pe = PoseEstimator()
     rospy.spin()
