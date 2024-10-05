@@ -163,8 +163,8 @@ include_directories(
 ## in contrast to setup.py, you can choose the destination
 install(PROGRAMS
   scripts/pose_estimator_all
-  scripts/pe_aruco
-  scripts/pe_objects
+  scripts/pose_estimator_a.py
+  scripts/pose_estimator_b.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 
