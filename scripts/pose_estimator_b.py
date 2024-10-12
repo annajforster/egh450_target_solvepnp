@@ -162,6 +162,18 @@ class PoseEstimator:
             # Perform pose estimation using solvePnP
             success, rvec, tvec = cv2.solvePnP(self.model_object, self.model_image, self.camera_matrix, self.dist_coeffs)
 
+            # For 3m Survey Altitude
+            # offsetx = 0.6257
+            # offsety = 0.173
+
+            # For 2m Survey Altitude
+            # offsetx = 0.4115
+            # offsety = 0.104
+
+            # For 1.5m Survey Altitude
+            offsetx = 0.3045
+            offsety = 0.07
+
             if success:
                 # Check if the output for this object has already been printed
                 if self.output_printed.get(class_id, False):
@@ -170,8 +182,8 @@ class PoseEstimator:
                 msg_out = TransformStamped()
                 msg_out.header = msg_in.header
                 msg_out.child_frame_id = f"{class_id}"
-                msg_out.transform.translation.x = tvec[0][0]
-                msg_out.transform.translation.y = tvec[1][0]
+                msg_out.transform.translation.x = tvec[0][0] + offsetx
+                msg_out.transform.translation.y = tvec[1][0] + offsety
                 msg_out.transform.translation.z = tvec[2][0]
                 
                 # Convert rotation vector to quaternion
@@ -181,6 +193,7 @@ class PoseEstimator:
                 msg_out.transform.rotation.z = q[2]
                 msg_out.transform.rotation.w = q[3]
                 
+                rospy.loginfo("Sending Initial Coordinates for ID: %d", class_id)
                 rospy.loginfo("Translation x: %f",  msg_out.transform.translation.x)
                 rospy.loginfo("Translation y: %f",  msg_out.transform.translation.y)
                 rospy.loginfo("Translation z: %f",  msg_out.transform.translation.z)
@@ -200,13 +213,13 @@ class PoseEstimator:
                 #     cv2.circle(cv_image, (int(point[0]), int(point[1])), 5, (0, 255, 0), 3)
 
         # Publish overlay image
-        try:
-            if self.param_use_compressed:
-                self.pub_overlay.publish(self.bridge.cv2_to_compressed_imgmsg(cv_image, "png"))
-            else:
-                self.pub_overlay.publish(self.bridge.cv2_to_imgmsg(cv_image, "bgr8"))
-        except (CvBridgeError, TypeError) as e:
-            rospy.logerr(e)
+        # try:
+        #     if self.param_use_compressed:
+        #         self.pub_overlay.publish(self.bridge.cv2_to_compressed_imgmsg(cv_image, "png"))
+        #     else:
+        #         self.pub_overlay.publish(self.bridge.cv2_to_imgmsg(cv_image, "bgr8"))
+        # except (CvBridgeError, TypeError) as e:
+        #     rospy.logerr(e)
 
 if __name__ == "__main__":
     rospy.init_node("egh450_target_solvepnp")

@@ -6,7 +6,7 @@ import numpy as np
 import tf2_ros
 import tf_conversions
 from geometry_msgs.msg import TransformStamped
-from std_msgs.msg import Float32MultiArray
+from std_msgs.msg import Float32MultiArray, UInt8
 from sensor_msgs.msg import Image, CompressedImage, CameraInfo
 from cv_bridge import CvBridge, CvBridgeError
 
@@ -19,6 +19,8 @@ class PoseEstimator:
         self.sub_object_pose = rospy.Subscriber("/object_pose", Float32MultiArray, self.callback_obj_pose, queue_size=50)
         self.sub_aruco_pose = rospy.Subscriber("/aruco_detection", Float32MultiArray, self.callback_aruco_pose, queue_size=50)
         self.pub_camera_pose = rospy.Publisher("/camera/pose", TransformStamped, queue_size=50)
+        #Subscribe to NAV POSE re-estimation
+        self.sub_pose_refined = rospy.Subscriber('refined_pose', UInt8, self.callback_refined_pose, queue_size=2)
 
         # Initialize variables
         self.model_image = None
@@ -30,6 +32,7 @@ class PoseEstimator:
 
         # Flags to prevent re-processing
         self.output_printed = {}
+        self.re_estimated_printed = {}
 
         # Set ROS parameters
         self.param_use_compressed = rospy.get_param("~use_compressed", False)
@@ -63,6 +66,15 @@ class PoseEstimator:
             rospy.loginfo("Got camera info")
             self.got_camera_info = True
 
+    def callback_refined_pose(self, msg):
+        refined_id = msg.data
+        rospy.loginfo("Received new UAV location to refine POSE")
+
+        if refined_id in self.object_data:
+            self.output_printed[refined_id] = True
+            self.re_estimated_printed[refined_id] = False
+            rospy.loginfo("Reset POSE estimation for ID: %d", refined_id)
+
     # Callback for YOLOv5 object pose messages
     def callback_obj_pose(self, msg_in):
         obj_array = msg_in.data
@@ -77,9 +89,9 @@ class PoseEstimator:
 
         # Verify if we have a known target
         if class_id == 101:
-            target = "backpack"
+            target = "Backpack"
         elif class_id == 102:
-            target = "person"
+            target = "Person"
         else:
             rospy.logwarn("Unknown target identification")
             return
@@ -90,6 +102,8 @@ class PoseEstimator:
         # Initialize the flag for this object ID
         if class_id not in self.output_printed:
             self.output_printed[class_id] = False
+        if class_id not in self.re_estimated_printed:
+            self.re_estimated_printed[class_id] = True
 
     # Callback for ArUco detection messages
     def callback_aruco_pose(self, msg_in):
@@ -110,6 +124,8 @@ class PoseEstimator:
         # Initialize the flag for this marker ID
         if marker_id not in self.output_printed:
             self.output_printed[marker_id] = False
+        if marker_id not in self.re_estimated_printed:
+            self.re_estimated_printed[marker_id] = True
 
     # Callback for images
     def callback_img(self, msg_in):
@@ -161,56 +177,71 @@ class PoseEstimator:
 
             # Perform pose estimation using solvePnP
             success, rvec, tvec = cv2.solvePnP(self.model_object, self.model_image, self.camera_matrix, self.dist_coeffs)
-            
-            # For 3m Survey Altitude
-            # offsetx = 0.6257
-            # offsety = 0.173
-
-            # For 2m Survey Altitude
-            # offsetx = 0.4115
-            # offsety = 0.104
-
-            # For 1.5m Survey Altitude
-            offsetx = 0.3045
-            offsety = 0.07
 
             if success:
                 # Check if the output for this object has already been printed
-                if self.output_printed.get(class_id, False):
-                    continue  # Skip if already printed
+                if not self.output_printed.get(class_id, False):
+                    self.publish_pose(msg_in, class_id, rvec, tvec)
+                    # Set flag to True after first estimation
+                    self.output_printed[class_id] = True
+            
+                # Reset flag for re-estimation of pose when triggered by autopilot
+                if self.output_printed[class_id] and not self.re_estimated_printed[class_id]:
+                    rospy.loginfo("Re-estimating POSE for ID: %d", class_id)
+                    #self.output_printed[class_id] = False
+                    self.re_estimated_printed[class_id] = True
 
-                msg_out = TransformStamped()
-                msg_out.header = msg_in.header
-                msg_out.child_frame_id = f"{class_id}"
-                msg_out.transform.translation.x = tvec[0][0] + offsetx
-                msg_out.transform.translation.y = tvec[1][0] + offsety
-                msg_out.transform.translation.z = tvec[2][0]
+                    # Republish pose again
+                    self.publish_pose(msg_in, class_id, rvec, tvec)
+
+
+    def publish_pose(self, msg_in, class_id, rvec, tvec):   
+
+        # For 3m Survey Altitude
+        # offsetx = 0.6257
+        # offsety = 0.173
+
+        # For 2m Survey Altitude
+        # offsetx = 0.4115
+        # offsety = 0.104
+
+        # For 1.5m Survey Altitude
+        # offsetx = 0.3045
+        # offsety = 0.07      
+        #     
+        # Publish all coordinates and IDs to the TransformStamped message type    
+        msg_out = TransformStamped()
+        msg_out.header = msg_in.header
+        msg_out.child_frame_id = f"{class_id}"
+        msg_out.transform.translation.x = tvec[0][0] #+ offsetx
+        msg_out.transform.translation.y = tvec[1][0] #+ offsety
+        msg_out.transform.translation.z = tvec[2][0]
                 
-                # Convert rotation vector to quaternion
-                q = tf_conversions.transformations.quaternion_from_euler(rvec[0][0], rvec[1][0], rvec[2][0])
-                msg_out.transform.rotation.x = q[0]
-                msg_out.transform.rotation.y = q[1]
-                msg_out.transform.rotation.z = q[2]
-                msg_out.transform.rotation.w = q[3]
+        # Convert rotation vector to quaternion
+        q = tf_conversions.transformations.quaternion_from_euler(rvec[0][0], rvec[1][0], rvec[2][0])
+        msg_out.transform.rotation.x = q[0]
+        msg_out.transform.rotation.y = q[1]
+        msg_out.transform.rotation.z = q[2]
+        msg_out.transform.rotation.w = q[3]
                 
-                rospy.loginfo("Sending Initial Coordinates for ID: %d", class_id)
-                rospy.loginfo("Translation x: %f",  msg_out.transform.translation.x)
-                rospy.loginfo("Translation y: %f",  msg_out.transform.translation.y)
-                rospy.loginfo("Translation z: %f",  msg_out.transform.translation.z)
+        rospy.loginfo("Object ID: %d",  class_id)
+        rospy.loginfo("Translation x: %0.2f",  msg_out.transform.translation.x)
+        rospy.loginfo("Translation y: %0.2f",  msg_out.transform.translation.y)
+        rospy.loginfo("Translation z: %0.2f",  msg_out.transform.translation.z)
                 
-                # Broadcast the pose and publish the message
-                self.tfbr.sendTransform(msg_out)
-                self.pub_camera_pose.publish(msg_out)
+        # Broadcast the pose and publish the message
+        self.tfbr.sendTransform(msg_out)
+        self.pub_camera_pose.publish(msg_out)
 
-                # Add the object to published set
-                self.published_objects.add(class_id)
+        # # Add the object to published set
+        # self.published_objects.add(class_id)
 
-                # Set the flag to True after printing
-                self.output_printed[class_id] = True
+        # # Set the flag to True after printing
+        # self.output_printed[class_id] = True
 
-                # Visualize the corners
-                # for point in self.model_image:
-                #     cv2.circle(cv_image, (int(point[0]), int(point[1])), 5, (0, 255, 0), 3)
+        # Visualize the corners
+        # for point in self.model_image:
+        #     cv2.circle(cv_image, (int(point[0]), int(point[1])), 5, (0, 255, 0), 3)
 
         # Publish overlay image
         # try:
